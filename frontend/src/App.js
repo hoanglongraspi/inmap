@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import maplibregl from 'maplibre-gl';
 import Supercluster from 'supercluster';
@@ -982,7 +982,7 @@ function App() {
   }, [sites, loading]);
 
   // Safe refresh function (guards against undefined)
-  const refreshSafe = () => {
+  const refreshSafe = useCallback(() => {
     if (!map.current || !mapReady) return;
     
     const src = map.current.getSource('favorites');
@@ -1055,7 +1055,7 @@ function App() {
         console.error('Failed to clear map data:', err);
       }
     }
-  };
+  }, [mapReady]);
 
   // Re-cluster & refresh when filtered features change, but ONLY after map is ready
   useEffect(() => {
@@ -1133,7 +1133,7 @@ function App() {
     setTimeout(() => {
       refreshSafe();
     }, 50);
-  }, [filteredFeatures, mapReady]);
+  }, [filteredFeatures, mapReady, refreshSafe]);
 
   // ------- UI: Filter panel (floats above the map and subtly scales with zoom) -------
   const panelScale = Math.min(1.08, Math.max(0.92, 0.92 + (mapZoom - 3) * 0.04));
