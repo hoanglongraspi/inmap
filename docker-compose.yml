@@ -1,0 +1,23 @@
+services:
+  db:
+    image: postgis/postgis:15-3.4  # Postgres 15 + PostGIS 3.4
+    container_name: my_postgres_db
+    environment:
+      - POSTGRES_USER=class302
+      - POSTGRES_PASSWORD=passmndl
+      - POSTGRES_DB=sequel
+    ports:
+      - "5433:5432"  # Map port 5433 on the host to 5432 in the container
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    
+  backend: 
+    build: ./backend # Tells Compose to build the image from the /backend/Dockerfile
+    container_name: my_fastapi_app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://class302:passmndl@db:5432/sequel
+
+volumes:
+  postgres_data: # This named volume persists the database data
