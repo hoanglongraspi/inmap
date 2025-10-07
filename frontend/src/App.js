@@ -608,6 +608,7 @@ function App() {
         container: mapContainer.current,
         style: {
           version: 8,
+          glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
           sources: {
             'carto-light': {
               type: 'raster',
@@ -703,19 +704,12 @@ function App() {
         source: "favorites",
         filter: ["has", "point_count"],
         layout: {
-          "text-field": "{point_count_abbreviated}",
-          "text-size": 12
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-size": 13,
+          "text-font": ["Noto Sans Regular"]
         },
         paint: {
-          // Dynamic text color: black for light backgrounds, white for dark backgrounds
-          "text-color": [
-            "step",
-            ["get", "point_count"],
-            "#000000",  // Black text for very light clusters (default, < 10)
-            10, "#000000",  // Black text for light clusters (10-24)
-            25, "#ffffff",  // White text for medium clusters (25-49)
-            50, "#ffffff"   // White text for dark clusters (50+)
-          ]
+          "text-color": "#ffffff"
         }
       });
 
@@ -989,7 +983,8 @@ function App() {
 
   // Safe refresh function (guards against undefined)
   const refreshSafe = () => {
-    if (!map.current) return;
+    if (!map.current || !mapReady) return;
+    
     const src = map.current.getSource('favorites');
     if (!src) return;
 
@@ -999,77 +994,145 @@ function App() {
       return;
     }
 
-    const b = map.current.getBounds?.();
-    if (!b) return;
-
-    const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
-    if (!bbox.every(n => Number.isFinite(n))) return;
-
-    const zoom = map.current.getZoom?.();
-    if (!Number.isFinite(zoom)) return;
-
-    let clusters = [];
     try {
-      // Enhanced safety check: verify Supercluster is properly loaded
-      // Check for both the function AND internal state (trees property)
-      if (clusterIndex.current && 
-          typeof clusterIndex.current.getClusters === 'function' &&
-          clusterIndex.current.trees) {
-        clusters = clusterIndex.current.getClusters(bbox, Math.floor(zoom));
-      } else {
-        // Index exists but not properly loaded - clear it
-        console.warn('⚠️ Supercluster index not fully loaded, clearing...');
-        clusterIndex.current = null;
-      }
-    } catch (e) {
-      console.error('❌ supercluster.getClusters failed:', e.message);
-      console.warn('Clearing invalid cluster index');
-      clusterIndex.current = null;
-      clusters = [];
-    }
+      const b = map.current.getBounds?.();
+      if (!b) return;
 
-    src.setData({ type: 'FeatureCollection', features: clusters });
+      const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+      if (!bbox.every(n => Number.isFinite(n))) {
+        console.warn('⚠️ Invalid bbox:', bbox);
+        return;
+      }
+
+      const zoom = map.current.getZoom?.();
+      if (!Number.isFinite(zoom)) {
+        console.warn('⚠️ Invalid zoom:', zoom);
+        return;
+      }
+
+      // Clamp zoom to the range we set in Supercluster (0-16)
+      const clampedZoom = Math.max(0, Math.min(16, Math.floor(zoom)));
+
+      let clusters = [];
+      
+      // Verify Supercluster is properly initialized
+      if (!clusterIndex.current || 
+          typeof clusterIndex.current.getClusters !== 'function') {
+        console.warn('⚠️ Supercluster not properly initialized');
+        clusterIndex.current = null;
+        src.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      // Get clusters with error handling
+      try {
+        clusters = clusterIndex.current.getClusters(bbox, clampedZoom);
+      } catch (clusterError) {
+        console.error('❌ getClusters failed at zoom', clampedZoom, ':', clusterError.message);
+        // Log Supercluster state for debugging
+        console.warn('Supercluster state:', {
+          hasTrees: !!clusterIndex.current.trees,
+          treeKeys: clusterIndex.current.trees ? Object.keys(clusterIndex.current.trees) : [],
+          options: clusterIndex.current.options
+        });
+        throw clusterError;
+      }
+      
+      // Validate clusters
+      if (!Array.isArray(clusters)) {
+        throw new Error('getClusters did not return an array');
+      }
+
+      src.setData({ type: 'FeatureCollection', features: clusters });
+    } catch (e) {
+      console.error('❌ Error in refreshSafe:', e);
+      // Clear the invalid cluster index
+      clusterIndex.current = null;
+      // Set empty data to clear the map
+      try {
+        src.setData({ type: 'FeatureCollection', features: [] });
+      } catch (err) {
+        console.error('Failed to clear map data:', err);
+      }
+    }
   };
 
   // Re-cluster & refresh when filtered features change, but ONLY after map is ready
   useEffect(() => {
-    if (!mapReady || !map.current) return;
+    if (!mapReady || !map.current) {
+      console.log('⏳ Waiting for map to be ready...');
+      return;
+    }
 
     if (!filteredFeatures.length) {
+      console.log('📍 No features to cluster');
       clusterIndex.current = null; // no data -> clear index
       refreshSafe();
       return;
     }
 
+    // Validate features before creating cluster
+    const validFeatures = filteredFeatures.filter(f => {
+      if (!f || !f.geometry || !f.geometry.coordinates) return false;
+      const [lng, lat] = f.geometry.coordinates;
+      return Number.isFinite(lng) && Number.isFinite(lat) &&
+             lng >= -180 && lng <= 180 &&
+             lat >= -90 && lat <= 90;
+    });
+
+    if (validFeatures.length === 0) {
+      console.warn('⚠️ No valid features to cluster');
+      clusterIndex.current = null;
+      refreshSafe();
+      return;
+    }
+
+    if (validFeatures.length < filteredFeatures.length) {
+      console.warn(`⚠️ Filtered out ${filteredFeatures.length - validFeatures.length} invalid features`);
+    }
+
     try {
-      // Create new Supercluster instance
-      const newIndex = new Supercluster({ radius: 40, maxZoom: 16 });
+      // Create new Supercluster instance with validated features
+      const newIndex = new Supercluster({ 
+        radius: 40, 
+        maxZoom: 16,
+        minZoom: 0,
+        minPoints: 2
+      });
       
       // Load features into the index
-      newIndex.load(filteredFeatures);
+      newIndex.load(validFeatures);
       
-      // Verify the index was properly loaded by checking internal state
-      if (!newIndex.trees || typeof newIndex.getClusters !== 'function') {
-        throw new Error('Supercluster index not properly initialized');
+      // Test that getClusters works before assigning
+      const testBounds = [-180, -90, 180, 90];
+      const testClusters = newIndex.getClusters(testBounds, 0);
+      
+      if (!Array.isArray(testClusters)) {
+        throw new Error('Supercluster test failed: getClusters did not return array');
       }
       
-      // Only assign if successfully loaded
+      // Only assign if successfully loaded and tested
       clusterIndex.current = newIndex;
-      console.log(`✅ Supercluster loaded with ${filteredFeatures.length} features`);
+      console.log(`✅ Supercluster loaded with ${validFeatures.length} valid features`);
     } catch (e) {
-      console.error('❌ Failed to create Supercluster index:', e.message);
-      console.warn('filteredFeatures count:', filteredFeatures.length);
+      console.error('❌ Failed to create Supercluster index:', e);
+      console.warn('Features:', validFeatures.slice(0, 3)); // Log first 3 features for debugging
       clusterIndex.current = null;
       refreshSafe(); // Clear the map
       return;
     }
 
-    if (!listenerAttached.current) {
+    if (!listenerAttached.current && map.current) {
       map.current.on('moveend', refreshSafe);
       listenerAttached.current = true;
+      console.log('✅ Attached moveend listener');
     }
 
-    refreshSafe();
+    // Add a small delay to ensure Supercluster is fully initialized
+    // before attempting to render clusters
+    setTimeout(() => {
+      refreshSafe();
+    }, 50);
   }, [filteredFeatures, mapReady]);
 
   // ------- UI: Filter panel (floats above the map and subtly scales with zoom) -------
@@ -1348,8 +1411,9 @@ function App() {
         left: 0,
         right: 0,
         height: '70px',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        background: '#ffffff',
+        borderBottom: '2px solid #e5e7eb',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         zIndex: 999,
         display: 'flex',
         alignItems: 'center',
@@ -1367,8 +1431,7 @@ function App() {
             style={{
               height: '48px',
               width: 'auto',
-              objectFit: 'contain',
-              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
+              objectFit: 'contain'
             }}
           />
           <div style={{
@@ -1380,16 +1443,15 @@ function App() {
               margin: 0,
               fontSize: '24px',
               fontWeight: 700,
-              color: '#ffffff',
-              letterSpacing: '-0.5px',
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              color: '#111827',
+              letterSpacing: '-0.5px'
             }}>
               Customer Atlas
             </h1>
             <p style={{
               margin: 0,
               fontSize: '13px',
-              color: 'rgba(255,255,255,0.9)',
+              color: '#6b7280',
               fontWeight: 400
             }}>
               Map-Driven CRM for Outreach
@@ -1405,18 +1467,25 @@ function App() {
             onClick={() => setActiveTab('map')}
             style={{
               padding: '8px 16px',
-              border: 'none',
+              border: '2px solid #e5e7eb',
               borderRadius: '8px',
-              background: activeTab === 'map' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
-              color: '#ffffff',
+              background: activeTab === 'map' ? '#3b82f6' : '#ffffff',
+              color: activeTab === 'map' ? '#ffffff' : '#374151',
               fontWeight: 600,
               fontSize: '14px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
+              transition: 'all 0.2s'
             }}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
-            onMouseOut={(e) => e.currentTarget.style.background = activeTab === 'map' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}
+            onMouseOver={(e) => {
+              if (activeTab !== 'map') {
+                e.currentTarget.style.background = '#f3f4f6';
+              }
+            }}
+            onMouseOut={(e) => {
+              if (activeTab !== 'map') {
+                e.currentTarget.style.background = '#ffffff';
+              }
+            }}
           >
             Map View
           </button>
@@ -1424,18 +1493,25 @@ function App() {
             onClick={() => setActiveTab('analytics')}
             style={{
               padding: '8px 16px',
-              border: 'none',
+              border: '2px solid #e5e7eb',
               borderRadius: '8px',
-              background: activeTab === 'analytics' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
-              color: '#ffffff',
+              background: activeTab === 'analytics' ? '#3b82f6' : '#ffffff',
+              color: activeTab === 'analytics' ? '#ffffff' : '#374151',
               fontWeight: 600,
               fontSize: '14px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
+              transition: 'all 0.2s'
             }}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
-            onMouseOut={(e) => e.currentTarget.style.background = activeTab === 'analytics' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}
+            onMouseOver={(e) => {
+              if (activeTab !== 'analytics') {
+                e.currentTarget.style.background = '#f3f4f6';
+              }
+            }}
+            onMouseOut={(e) => {
+              if (activeTab !== 'analytics') {
+                e.currentTarget.style.background = '#ffffff';
+              }
+            }}
           >
             Analytics
           </button>
@@ -1443,23 +1519,24 @@ function App() {
             onClick={() => navigate('/customers')}
             style={{
               padding: '8px 16px',
-              border: '2px solid rgba(255,255,255,0.3)',
+              border: '2px solid #10b981',
               borderRadius: '8px',
-              background: 'rgba(255,255,255,0.15)',
+              background: '#10b981',
               color: '#ffffff',
               fontWeight: 600,
               fontSize: '14px',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              backdropFilter: 'blur(10px)'
+              transition: 'all 0.2s'
             }}
             onMouseOver={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
+              e.currentTarget.style.background = '#059669';
               e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.3)';
             }}
             onMouseOut={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+              e.currentTarget.style.background = '#10b981';
               e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
             }}
           >
             Customer Manager
@@ -1502,50 +1579,6 @@ function App() {
         <div className="panel-header">
           <strong className="panel-title">Filters</strong>
           <div className="panel-actions">
-            <button 
-              onClick={() => setActiveTab('analytics')} 
-              className="btn ghost" 
-              title="View Analytics"
-              style={{ 
-                padding: '6px 12px', 
-                fontSize: '13px',
-                background: '#f0f9ff',
-                color: '#0369a1',
-                border: '1px solid #bae6fd',
-                borderRadius: '8px',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.background = '#e0f2fe'}
-              onMouseOut={(e) => e.currentTarget.style.background = '#f0f9ff'}
-            >
-              Analytics
-            </button>
-            <button 
-              onClick={() => navigate('/customers')} 
-              className="btn ghost" 
-              title="Manage Customers"
-              style={{ 
-                padding: '6px 12px', 
-                fontSize: '13px',
-                background: '#10b981',
-                color: 'white',
-                border: '1px solid #10b981',
-                borderRadius: '8px',
-                fontWeight: 500,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.2s'
-              }}
-              onMouseOver={(e) => e.currentTarget.style.background = '#059669'}
-              onMouseOut={(e) => e.currentTarget.style.background = '#10b981'}
-            >
-              Customer Manager
-            </button>
             <button 
               onClick={resetFilters} 
               className="btn ghost" 

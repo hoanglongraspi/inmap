@@ -306,17 +306,89 @@ const CustomerManagementPage = () => {
 
   return (
     <div className="customer-page">
-      {/* Navigation Bar */}
-      <div className="navigation-bar">
-        <button onClick={() => navigate('/')} className="btn-back">
+      {/* Header with Logo */}
+      <header style={{
+        background: '#ffffff',
+        borderBottom: '2px solid #e5e7eb',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '16px 24px',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <img 
+            src="/logo.png" 
+            alt="Customer Atlas Logo" 
+            style={{
+              height: '48px',
+              width: 'auto',
+              objectFit: 'contain'
+            }}
+          />
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
+          }}>
+            <h1 style={{
+              margin: 0,
+              fontSize: '24px',
+              fontWeight: 700,
+              color: '#111827',
+              letterSpacing: '-0.5px'
+            }}>
+              Customer Atlas
+            </h1>
+            <p style={{
+              margin: 0,
+              fontSize: '13px',
+              color: '#6b7280',
+              fontWeight: 400
+            }}>
+              Customer Management
+            </p>
+          </div>
+        </div>
+        <button 
+          onClick={() => navigate('/')} 
+          style={{
+            padding: '8px 16px',
+            border: '2px solid #3b82f6',
+            borderRadius: '8px',
+            background: '#3b82f6',
+            color: '#ffffff',
+            fontWeight: 600,
+            fontSize: '14px',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = '#2563eb';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 8px rgba(59, 130, 246, 0.3)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = '#3b82f6';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="19" y1="12" x2="5" y2="12"/>
             <polyline points="12 19 5 12 12 5"/>
           </svg>
           Back to Map
         </button>
-        <div className="nav-title">CRM System</div>
-      </div>
+      </header>
 
       {/* Header */}
       <div className="page-header">
