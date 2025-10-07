@@ -11,6 +11,21 @@ import { apiGetCustomers, apiGetProducts } from './lib/api';
 // Geocoding cache to avoid repeated API calls
 const geocodeCache = new Map();
 
+// State code -> full name map (50 states + DC) - moved outside component to avoid re-creation
+const STATE_NAMES = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
+  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
+  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
+  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
+  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
+  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
+  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  DC: 'District of Columbia'
+};
+
 /**
  * Geocode an address using Nominatim (OpenStreetMap) API
  * Free service with rate limiting (1 request/second recommended)
@@ -339,21 +354,6 @@ function App() {
     loadProducts();
   }, []);
 
-  // State code -> full name map (50 states + DC)
-  const STATE_NAMES = {
-    AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-    CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-    HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-    KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-    MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
-    MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-    NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
-    OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-    SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
-    VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
-    DC: 'District of Columbia'
-  };
-
   // Options (derived)
   const stateOptions = useMemo(
     () => Array.from(new Set(sites.map(s => s.state))).sort(),
@@ -413,7 +413,7 @@ function App() {
   };
 
   // Helper function to determine product type for coloring
-  const getProductType = (productsRaw) => {
+  const getProductType = React.useCallback((productsRaw) => {
     const products = normalizeProducts(productsRaw).map(p => {
       // Normalize product names to match available products
       const productName = String(p);
@@ -431,7 +431,7 @@ function App() {
     if (matchedProducts.length > 1) return 'Multiple Products';
     if (matchedProducts.length === 1) return matchedProducts[0];
     return products.length > 0 ? products[0] : 'Other';
-  };
+  }, [availableProducts]);
 
   // Helper function to get color based on product type
   const getProductColor = (productType) => {
@@ -470,7 +470,7 @@ function App() {
   };
 
   // Convert sites data to GeoJSON features (filter out invalid coordinates)
-  const toFeatures = (sitesData) => {
+  const toFeatures = React.useCallback((sitesData) => {
     if (!Array.isArray(sitesData)) {
       console.warn('toFeatures received non-array data:', sitesData);
       return [];
@@ -541,7 +541,7 @@ function App() {
 
     console.log(`Created ${features.length} valid GeoJSON features from ${sitesData.length} sites`);
     return features;
-  };
+  }, [getProductType, availableProducts]);
 
   // Apply filters (show ALL when nothing selected)
   const filteredSites = useMemo(() => {
@@ -1147,7 +1147,7 @@ function App() {
       timelineData,
       totalSites: sites.length
     };
-  }, [sites, availableProducts, STATE_NAMES, getProductType]);
+  }, [sites, availableProducts, getProductType]);
 
   if (loading) {
     return (
