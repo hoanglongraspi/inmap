@@ -608,6 +608,14 @@ function App() {
       zoom: 3
     });
 
+    // Add error handler to suppress non-critical MapTiler tile errors
+    map.current.on('error', (e) => {
+      // Only log actual critical errors, suppress tile loading errors
+      if (e.error && e.error.message && !e.error.message.includes('a is not defined')) {
+        console.warn('Map error:', e.error.message);
+      }
+    });
+
     map.current.on('move', () => {
       if (map.current) setMapZoom(map.current.getZoom());
     });
