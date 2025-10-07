@@ -3,10 +3,12 @@ import './CSVImport.css';
 import { apiImportCSVData, apiGetProducts, apiCreateProduct } from '../lib/api';
 
 const CSVImport = ({ onImportComplete, onClose }) => {
+  // eslint-disable-next-line no-unused-vars
   const [file, setFile] = useState(null);
   const [csvData, setCsvData] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [fieldMapping, setFieldMapping] = useState({});
+  // eslint-disable-next-line no-unused-vars
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState(null);

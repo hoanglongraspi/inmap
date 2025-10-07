@@ -6,7 +6,7 @@ import zipcodes from 'zipcodes';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './App.css';
 import CustomerManagement from './components/CustomerManagement';
-import { apiGetSites, apiGetCustomers, apiGetProducts } from './lib/api';
+import { apiGetCustomers, apiGetProducts } from './lib/api';
 
 // Geocoding cache to avoid repeated API calls
 const geocodeCache = new Map();
@@ -122,7 +122,9 @@ const geocodeWithMapTiler = async (address, apiKey = 'b9c8lYjfkzHCjixZoLqo') => 
 /**
  * Geocode an address or zip code with caching and multiple fallback strategies
  * Priority: US Zipcode API > Local Zipcode Library > MapTiler > Nominatim
+ * Note: Not currently used in App.js, but kept for future use
  */
+// eslint-disable-next-line no-unused-vars
 const geocodeAddress = async (address, city = '', state = '', zipCode = '') => {
   // Create a full address string for better geocoding results
   const fullAddress = [address, city, state, zipCode]
@@ -593,7 +595,7 @@ function App() {
   }, [sites, selectedStates, selectedProducts, statuses, dateFrom, dateTo, zipQuery]);
 
   // Keep a memoized FeatureCollection for filtered sites
-  const filteredFeatures = useMemo(() => toFeatures(filteredSites), [filteredSites]);
+  const filteredFeatures = useMemo(() => toFeatures(filteredSites), [filteredSites, toFeatures]);
 
   // Setup map once
   useEffect(() => {
@@ -1056,8 +1058,6 @@ function App() {
     setSelectedProducts(productOptions);
   };
 
-  const totalShown = filteredSites.length;
-
   // Analytics calculations
   const analytics = useMemo(() => {
     if (!sites.length) return null;
@@ -1147,7 +1147,7 @@ function App() {
       timelineData,
       totalSites: sites.length
     };
-  }, [sites, availableProducts]);
+  }, [sites, availableProducts, STATE_NAMES, getProductType]);
 
   if (loading) {
     return (
@@ -1360,7 +1360,7 @@ function App() {
       {activeTab === 'map' && (
         <div
           className={`filter-panel ${panelOpen ? 'open' : 'closed'}`}
-          style={{ ['--scale']: panelScale }}
+          style={{ '--scale': panelScale }}
           aria-hidden={!panelOpen}
         >
         <div className="panel-header">

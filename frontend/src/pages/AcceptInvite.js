@@ -20,7 +20,7 @@ export default function AcceptInvite() {
     setMsg("");
     setBusy(true);
     try {
-      const { user, session } = await apiAcceptInvite({ token, password });
+      await apiAcceptInvite({ token, password });
       setMsg("Account created successfully! Redirecting to dashboard…");
       // Since user is now signed in with Supabase, redirect to main app
       setTimeout(() => navigate("/", { replace: true }), 1200);

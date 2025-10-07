@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import './CustomerManagement.css';
-import { apiGetSites, apiCreateSampleData, apiGetCustomers } from '../lib/api';
+import { apiCreateSampleData, apiGetCustomers } from '../lib/api';
 import { supabase } from '../lib/supabase';
 
 const CustomerManagement = ({ onClose }) => {
@@ -315,7 +315,7 @@ const CustomerManagement = ({ onClose }) => {
           <button
             onClick={async () => {
               try {
-                const result = await handleCreateSampleData();
+                await handleCreateSampleData();
                 alert('Sample data created! Refreshing...');
                 window.location.reload();
               } catch (err) {
