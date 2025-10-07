@@ -609,17 +609,23 @@ function App() {
         style: {
           version: 8,
           sources: {
-            'osm': {
+            'carto-light': {
               type: 'raster',
-              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tiles: [
+                'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+                'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'
+              ],
               tileSize: 256,
-              attribution: '© OpenStreetMap contributors'
+              attribution: '© OpenStreetMap contributors © CARTO',
+              maxzoom: 19
             }
           },
           layers: [{
-            id: 'osm',
+            id: 'carto-light-layer',
             type: 'raster',
-            source: 'osm',
+            source: 'carto-light',
             minzoom: 0,
             maxzoom: 19
           }]
@@ -630,9 +636,13 @@ function App() {
 
       console.log('✅ Map instance created');
 
-      // Add error handler
+      // Add error handler to suppress non-critical tile errors
       map.current.on('error', (e) => {
-        console.error('❌ Map error:', e);
+        // Only log non-tile errors (tile errors are usually just 404s for tiles outside view)
+        if (e && !e.tile) {
+          console.warn('Map error (non-tile):', e.error?.message || e);
+        }
+        // Silently ignore tile loading errors - they don't affect functionality
       });
     } catch (error) {
       console.error('❌ Failed to initialize map:', error);
@@ -1218,38 +1228,7 @@ function App() {
     if (!analytics) return <div>Loading analytics...</div>;
 
     return (
-      <div style={{ padding: '20px', maxHeight: 'calc(100vh - 40px)', overflow: 'auto' }}>
-        {/* Header with tabs */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '2px solid #e5e7eb', paddingBottom: 10 }}>
-          <button
-            onClick={() => setActiveTab('map')}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '6px',
-              background: activeTab === 'map' ? '#3b82f6' : '#f3f4f6',
-              color: activeTab === 'map' ? '#fff' : '#374151',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            Map View
-          </button>
-          <button
-            onClick={() => setActiveTab('analytics')}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              borderRadius: '6px',
-              background: activeTab === 'analytics' ? '#3b82f6' : '#f3f4f6',
-              color: activeTab === 'analytics' ? '#fff' : '#374151',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            Analytics
-          </button>
-        </div>
+      <div style={{ padding: '20px', maxHeight: 'calc(100vh - 70px)', overflow: 'auto' }}>
 
         {/* Overview Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
@@ -1362,6 +1341,132 @@ function App() {
 
   return (
     <div className="App" style={{ position: 'relative' }}>
+      {/* Header with Logo and App Name */}
+      <header style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: '70px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        zIndex: 999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 24px'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <img 
+            src="/logo.png" 
+            alt="Customer Atlas Logo" 
+            style={{
+              height: '48px',
+              width: 'auto',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))'
+            }}
+          />
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px'
+          }}>
+            <h1 style={{
+              margin: 0,
+              fontSize: '24px',
+              fontWeight: 700,
+              color: '#ffffff',
+              letterSpacing: '-0.5px',
+              textShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }}>
+              Customer Atlas
+            </h1>
+            <p style={{
+              margin: 0,
+              fontSize: '13px',
+              color: 'rgba(255,255,255,0.9)',
+              fontWeight: 400
+            }}>
+              Map-Driven CRM for Outreach
+            </p>
+          </div>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <button
+            onClick={() => setActiveTab('map')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              borderRadius: '8px',
+              background: activeTab === 'map' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
+              color: '#ffffff',
+              fontWeight: 600,
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+            onMouseOut={(e) => e.currentTarget.style.background = activeTab === 'map' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}
+          >
+            Map View
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            style={{
+              padding: '8px 16px',
+              border: 'none',
+              borderRadius: '8px',
+              background: activeTab === 'analytics' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)',
+              color: '#ffffff',
+              fontWeight: 600,
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.25)'}
+            onMouseOut={(e) => e.currentTarget.style.background = activeTab === 'analytics' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.1)'}
+          >
+            Analytics
+          </button>
+          <button
+            onClick={() => navigate('/customers')}
+            style={{
+              padding: '8px 16px',
+              border: '2px solid rgba(255,255,255,0.3)',
+              borderRadius: '8px',
+              background: 'rgba(255,255,255,0.15)',
+              color: '#ffffff',
+              fontWeight: 600,
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              backdropFilter: 'blur(10px)'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            Customer Manager
+          </button>
+        </div>
+      </header>
+
       {/* Customer Management Modal */}
       {showCustomerManagement && (
         <CustomerManagement
@@ -1371,7 +1476,7 @@ function App() {
 
       {/* Show analytics panel when analytics tab is active */}
       {activeTab === 'analytics' && (
-        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: '#f9fafb', zIndex: 1000 }}>
+        <div style={{ position: 'absolute', top: '70px', left: 0, right: 0, bottom: 0, background: '#f9fafb', zIndex: 1000 }}>
           <AnalyticsPanel />
         </div>
       )}
