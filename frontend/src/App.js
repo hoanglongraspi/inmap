@@ -601,20 +601,43 @@ function App() {
   useEffect(() => {
     if (map.current || loading || sites.length === 0) return;
 
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: "https://api.maptiler.com/maps/openstreetmap/style.json?key=b9c8lYjfkzHCjixZoLqo",
-      center: [-98.5, 39.8],
-      zoom: 3
-    });
+    console.log('🗺️ Initializing map with', sites.length, 'sites');
 
-    // Add error handler to suppress non-critical MapTiler tile errors
-    map.current.on('error', (e) => {
-      // Only log actual critical errors, suppress tile loading errors
-      if (e.error && e.error.message && !e.error.message.includes('a is not defined')) {
-        console.warn('Map error:', e.error.message);
-      }
-    });
+    try {
+      map.current = new maplibregl.Map({
+        container: mapContainer.current,
+        style: {
+          version: 8,
+          sources: {
+            'osm': {
+              type: 'raster',
+              tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              attribution: '© OpenStreetMap contributors'
+            }
+          },
+          layers: [{
+            id: 'osm',
+            type: 'raster',
+            source: 'osm',
+            minzoom: 0,
+            maxzoom: 19
+          }]
+        },
+        center: [-98.5, 39.8],
+        zoom: 3
+      });
+
+      console.log('✅ Map instance created');
+
+      // Add error handler
+      map.current.on('error', (e) => {
+        console.error('❌ Map error:', e);
+      });
+    } catch (error) {
+      console.error('❌ Failed to initialize map:', error);
+      return;
+    }
 
     map.current.on('move', () => {
       if (map.current) setMapZoom(map.current.getZoom());
