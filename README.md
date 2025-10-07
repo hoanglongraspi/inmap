@@ -70,7 +70,6 @@ Quick deploy:
 - `/login` - Login page
 - `/customers` - Customer management page
 - `/accept-invite` - Accept team invitation
-- `/generate-invite` - Generate team invitations
 
 ## Project Structure
 

@@ -5,7 +5,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import App from "./App";
 import Login from "./pages/Login";
 import AcceptInvite from "./pages/AcceptInvite";
-import GenerateInvite from "./pages/GenerateInvite";
 import CustomerManagementPage from "./pages/CustomerManagementPage";
 import "./index.css";
 
@@ -16,7 +15,6 @@ function Root() {
       <Routes>
         <Route path="/login" element={<Login onAuthed={setUser} />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
-        <Route path="/generate-invite" element={<GenerateInvite />} />
         <Route path="/" element={user ? <App /> : <Navigate to="/login" replace />} />
         <Route path="/customers" element={user ? <CustomerManagementPage /> : <Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />

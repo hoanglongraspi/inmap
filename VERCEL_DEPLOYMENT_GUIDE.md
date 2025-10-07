@@ -66,7 +66,6 @@ In the Vercel project settings, add these environment variables:
    - `/` - Main map view (after login)
    - `/customers` - Customer management page
    - `/accept-invite` - Invite acceptance page
-   - `/generate-invite` - Generate invite page
 
 ## Troubleshooting
 
