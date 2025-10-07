@@ -460,14 +460,14 @@ function App() {
   }, [availableProducts]);
 
   // Helper function to get size based on status
-  const getStatusSize = (status) => {
+  const getStatusSize = React.useCallback((status) => {
     switch (status) {
       case 'customer': return 12; // Largest
       case 'prospect': return 10; // Medium
       case 'lead': return 8; // Smallest
       default: return 8;
     }
-  };
+  }, []);
 
   // Convert sites data to GeoJSON features (filter out invalid coordinates)
   const toFeatures = React.useCallback((sitesData) => {
@@ -541,7 +541,7 @@ function App() {
 
     console.log(`Created ${features.length} valid GeoJSON features from ${sitesData.length} sites`);
     return features;
-  }, [getProductType, getProductColor]);
+  }, [getProductType, getProductColor, getStatusSize]);
 
   // Apply filters (show ALL when nothing selected)
   const filteredSites = useMemo(() => {
