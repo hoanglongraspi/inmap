@@ -1,4 +1,4 @@
-# Customer Atlas - A Map-Driven CRM for Outreach
+# MapPlot - A Map-Driven CRM for Outreach
 
 This project develops a web application that centralizes customer maintenance in a map-first interface.
 
@@ -28,7 +28,7 @@ This design helps the team identify geographic patterns, prioritize outreach, an
 1. **Clone the repository**
    ```bash
    git clone <your-repo-url>
-   cd Customer-Atlas-A-Map-Driven-CRM-for-Outreach-main
+   cd MapPlot
    ```
 
 2. **Install dependencies**
@@ -74,7 +74,7 @@ Quick deploy:
 ## Project Structure
 
 ```
-Customer-Atlas-A-Map-Driven-CRM-for-Outreach/
+MapPlot/
 ├── frontend/
 │   ├── public/           # Static assets
 │   ├── src/

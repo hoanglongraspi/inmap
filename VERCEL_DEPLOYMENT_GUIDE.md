@@ -1,6 +1,6 @@
 # Vercel Deployment Guide
 
-This guide will help you deploy the Customer Atlas CRM application to Vercel.
+This guide will help you deploy the MapPlot application to Vercel.
 
 ## Prerequisites
 

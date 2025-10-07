@@ -37,7 +37,7 @@ const geocodeWithNominatim = async (address) => {
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Customer-Atlas-CRM/1.0' // Nominatim requires a user agent
+        'User-Agent': 'MapPlot/1.0' // Nominatim requires a user agent
       }
     });
     
@@ -434,7 +434,7 @@ function App() {
   }, [availableProducts]);
 
   // Helper function to get color based on product type
-  const getProductColor = (productType) => {
+  const getProductColor = React.useCallback((productType) => {
     // Define a color palette for products
     const colorPalette = [
       '#ef4444', // Red
@@ -457,7 +457,7 @@ function App() {
     
     // Fallback for unknown products
     return '#6b7280'; // Gray
-  };
+  }, [availableProducts]);
 
   // Helper function to get size based on status
   const getStatusSize = (status) => {
@@ -541,7 +541,7 @@ function App() {
 
     console.log(`Created ${features.length} valid GeoJSON features from ${sitesData.length} sites`);
     return features;
-  }, [getProductType, availableProducts]);
+  }, [getProductType, getProductColor]);
 
   // Apply filters (show ALL when nothing selected)
   const filteredSites = useMemo(() => {
