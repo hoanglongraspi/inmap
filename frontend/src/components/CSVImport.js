@@ -22,12 +22,6 @@ const CSVImport = ({ onImportComplete, onClose }) => {
   });
   const [creatingProduct, setCreatingProduct] = useState(false);
   const fileInputRef = useRef(null);
-  
-  // Google Sheets import states
-  const [importMethod, setImportMethod] = useState('file'); // 'file' or 'googlesheet'
-  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-  const [loadingGoogleSheet, setLoadingGoogleSheet] = useState(false);
-  const [googleSheetError, setGoogleSheetError] = useState(null);
 
   // Load available products on component mount
   useEffect(() => {
@@ -143,302 +137,6 @@ const CSVImport = ({ onImportComplete, onClose }) => {
     });
 
     return { headers, data };
-  };
-
-  // Parse Google Sheets HTML response to extract data
-  const parseGoogleSheetsHTML = (html) => {
-    try {
-      console.log('📊 Parsing Google Sheets HTML...');
-      
-      // Method 1: Extract from HTML table (most reliable)
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const table = doc.querySelector('table.waffle');
-      
-      if (table) {
-        console.log('✅ Found Google Sheets table, extracting data...');
-        const rows = [];
-        const tableRows = table.querySelectorAll('tbody tr');
-        
-        for (const tr of tableRows) {
-          // Skip row headers (th elements with row numbers)
-          const cells = tr.querySelectorAll('td');
-          if (cells.length === 0) continue;
-          
-          const rowData = [];
-          for (const cell of cells) {
-            // Get the text content, handling merged cells and special formatting
-            let cellText = cell.textContent.trim();
-            
-            // Handle cells with nested divs (common in Google Sheets)
-            const innerDiv = cell.querySelector('.softmerge-inner');
-            if (innerDiv) {
-              cellText = innerDiv.textContent.trim();
-            }
-            
-            rowData.push(cellText);
-          }
-          
-          // Only add rows that have at least one non-empty cell
-          if (rowData.some(cell => cell && cell.length > 0)) {
-            rows.push(rowData);
-          }
-        }
-        
-        console.log(`✅ Extracted ${rows.length} rows from table`);
-        if (rows.length > 0) {
-          console.log('First row (headers):', rows[0]);
-          console.log('Second row (sample data):', rows[1]);
-          return rows;
-        }
-      }
-      
-      // Method 2: Try to extract from embedded JSON data
-      console.log('⚠️ Table not found, trying JSON extraction...');
-      const jsonMatch = html.match(/"data":(\[\[.*?\]\])/);
-      if (jsonMatch) {
-        try {
-          const rawData = JSON.parse(jsonMatch[1]);
-          console.log('✅ Found grid data in JSON, parsing...');
-          
-          const rows = [];
-          for (const row of rawData) {
-            const rowData = [];
-            for (const cell of row) {
-              // Each cell is an array with complex structure
-              let cellValue = '';
-              
-              if (cell && cell[0]) {
-                // Text cell: {"2": 3, "3": [2, "value"]}
-                if (cell[0]['2'] === 3 && cell[0]['3']) {
-                  cellValue = cell[0]['3'][2] || cell[0]['3'][0] || '';
-                }
-                // Number cell: {"1": 3, "3": number}
-                else if (cell[0]['1'] === 3 && cell[0]['3'] !== undefined) {
-                  cellValue = String(cell[0]['3']);
-                }
-              }
-              
-              rowData.push(cellValue);
-            }
-            
-            if (rowData.some(cell => cell)) {
-              rows.push(rowData);
-            }
-          }
-          
-          if (rows.length > 0) {
-            console.log(`✅ Extracted ${rows.length} rows from JSON`);
-            return rows;
-          }
-        } catch (e) {
-          console.log('⚠️ Failed to parse JSON data:', e.message);
-        }
-      }
-      
-      throw new Error('Could not extract data from Google Sheets HTML. Please try downloading as CSV instead.');
-    } catch (error) {
-      throw new Error('Failed to parse Google Sheets HTML: ' + error.message);
-    }
-  };
-
-  // Convert parsed rows to CSV-like format
-  const rowsToCSVFormat = (rows) => {
-    if (!rows || rows.length === 0) {
-      return { headers: [], data: [] };
-    }
-    
-    const headers = rows[0];
-    const data = rows.slice(1);
-    
-    return { headers, data };
-  };
-
-  // Fetch data from Google Sheets URL with CORS handling
-  const fetchGoogleSheetData = async () => {
-    setLoadingGoogleSheet(true);
-    setGoogleSheetError(null);
-    
-    try {
-      // Clean up the URL - just use it directly
-      let fetchUrl = googleSheetUrl.trim();
-      
-      // Make sure it's a valid Google Sheets URL
-      if (!fetchUrl.includes('docs.google.com/spreadsheets')) {
-        throw new Error('Invalid Google Sheets URL. Please paste a valid Google Sheets link.');
-      }
-      
-      let html = null;
-      let fetchError = null;
-      
-      // Method 1: Try direct fetch first (this will get HTML)
-      try {
-        console.log('📥 Fetching Google Sheet HTML from:', fetchUrl);
-        const response = await fetch(fetchUrl, {
-          mode: 'cors',
-          credentials: 'omit'
-        });
-        
-        if (response.ok) {
-          html = await response.text();
-          console.log('✅ Direct fetch successful, got HTML (' + html.length + ' bytes)');
-        } else {
-          fetchError = `HTTP ${response.status}: ${response.statusText}`;
-        }
-      } catch (directError) {
-        console.log('❌ Direct fetch failed (CORS):', directError.message);
-        fetchError = directError.message;
-      }
-      
-      // Method 2: If direct fetch failed, try CORS proxy
-      if (!html) {
-        console.log('Trying CORS proxy method...');
-        try {
-          // Use AllOrigins CORS proxy service
-          const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(fetchUrl)}`;
-          const response = await fetch(proxyUrl);
-          
-          if (response.ok) {
-            html = await response.text();
-            console.log('✅ CORS proxy fetch successful');
-          } else {
-            throw new Error(`Proxy failed: ${response.status}`);
-          }
-        } catch (proxyError) {
-          console.log('❌ CORS proxy failed:', proxyError.message);
-          // Try another proxy
-          try {
-            const corsAnywhereUrl = `https://corsproxy.io/?${encodeURIComponent(fetchUrl)}`;
-            const response = await fetch(corsAnywhereUrl);
-            
-            if (response.ok) {
-              html = await response.text();
-              console.log('✅ Alternative CORS proxy successful');
-            }
-          } catch (altProxyError) {
-            console.log('❌ Alternative proxy also failed:', altProxyError.message);
-          }
-        }
-      }
-      
-      // If all methods failed
-      if (!html || html.trim().length === 0) {
-        throw new Error(
-          'Unable to fetch Google Sheet data. Please make sure:\n\n' +
-          '1. The Google Sheet link is set to "Anyone with the link can view"\n' +
-          '2. You have a stable internet connection\n\n' +
-          'Alternatively, download as CSV and use the file upload option instead.\n\n' +
-          'Technical details: ' + (fetchError || 'No data received')
-        );
-      }
-      
-      console.log('📊 Received HTML, length:', html.length, 'bytes');
-      
-      // Parse the HTML to extract spreadsheet data
-      const rows = parseGoogleSheetsHTML(html);
-      
-      if (!rows || rows.length === 0) {
-        throw new Error(
-          'No data found in the Google Sheet.\n\n' +
-          '✅ ALTERNATIVE: Download as CSV and upload instead:\n' +
-          '   1. File → Download → Comma Separated Values (.csv)\n' +
-          '   2. Use "Upload CSV File" option\n\n' +
-          'Make sure your sheet has headers in the first row and data in subsequent rows.'
-        );
-      }
-      
-      // Convert rows to headers/data format
-      const { headers, data } = rowsToCSVFormat(rows);
-      
-      if (headers.length === 0 || data.length === 0) {
-        throw new Error(
-          'No data found in the Google Sheet.\n\n' +
-          'Make sure your sheet has:\n' +
-          '   • Headers in the first row\n' +
-          '   • Data in subsequent rows\n\n' +
-          'Found ' + rows.length + ' rows total.'
-        );
-      }
-      
-      console.log(`✅ Successfully parsed ${headers.length} columns and ${data.length} rows`);
-      
-      setHeaders(headers);
-      setCsvData(data);
-      
-      // Auto-map common fields with smart matching (same logic as file upload)
-      const autoMapping = {};
-      headers.forEach((header, index) => {
-        const lowerHeader = header.toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_');
-        
-        // Try exact match first
-        let matchedField = availableFields.find(field => 
-          field.key === lowerHeader || 
-          field.label.toLowerCase().replace(/\s+/g, '_') === lowerHeader
-        );
-        
-        // If no exact match, try smart pattern matching
-        if (!matchedField) {
-          matchedField = availableFields.find(field => {
-            // First name variations
-            if (field.key === 'first_name') {
-              return lowerHeader.match(/^(first|fname|f_name|firstname)(_name)?$/);
-            }
-            // Last name variations
-            if (field.key === 'last_name') {
-              return lowerHeader.match(/^(last|lname|l_name|lastname|surname)(_name)?$/);
-            }
-            // Email variations
-            if (field.key === 'email') {
-              return lowerHeader.match(/^(email|e_mail|mail|email_address)$/);
-            }
-            // Phone variations
-            if (field.key === 'phone') {
-              return lowerHeader.match(/^(phone|tel|telephone|mobile|cell|phone_number)$/);
-            }
-            // Zip code variations
-            if (field.key === 'zip_code') {
-              return lowerHeader.match(/^(zip|zipcode|zip_code|postal|postal_code|postcode)$/);
-            }
-            // Address variations
-            if (field.key === 'address') {
-              return lowerHeader.match(/^(address|addr|street|street_address|address_1|address1)$/);
-            }
-            // City variations
-            if (field.key === 'city') {
-              return lowerHeader.match(/^(city|town|municipality)$/);
-            }
-            // State variations
-            if (field.key === 'state') {
-              return lowerHeader.match(/^(state|province|region|st)$/);
-            }
-            // Country variations
-            if (field.key === 'country') {
-              return lowerHeader.match(/^(country|nation)$/);
-            }
-            // Company variations
-            if (field.key === 'company') {
-              return lowerHeader.match(/^(company|organization|organisation|business|employer|firm)$/);
-            }
-            return false;
-          });
-        }
-        
-        if (matchedField) {
-          autoMapping[index] = matchedField.key;
-          console.log(`✅ Auto-mapped "${header}" → "${matchedField.label}"`);
-        } else {
-          console.log(`⚠️ No auto-mapping for "${header}"`);
-        }
-      });
-      setFieldMapping(autoMapping);
-      setStep(3);
-      
-    } catch (error) {
-      console.error('Error fetching Google Sheet:', error);
-      setGoogleSheetError(error.message);
-    } finally {
-      setLoadingGoogleSheet(false);
-    }
   };
 
   // Handle file selection
@@ -646,10 +344,6 @@ const CSVImport = ({ onImportComplete, onClose }) => {
     setImportProgress(0);
     setImportResults(null);
     setStep(1);
-    setImportMethod('file');
-    setGoogleSheetUrl('');
-    setGoogleSheetError(null);
-    setLoadingGoogleSheet(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -763,114 +457,27 @@ const CSVImport = ({ onImportComplete, onClose }) => {
             </div>
           )}
 
-          {/* Step 2: File Upload or Google Sheets */}
+          {/* Step 2: File Upload */}
           {step === 2 && (
             <div className="upload-step">
-              {/* Import Method Toggle */}
-              <div className="import-method-toggle">
-                <button
-                  className={`toggle-button ${importMethod === 'file' ? 'active' : ''}`}
-                  onClick={() => {
-                    setImportMethod('file');
-                    setGoogleSheetError(null);
-                  }}
+              <div className="upload-area">
+                <div className="upload-icon">📁</div>
+                <h3>Select CSV File</h3>
+                <p>Choose a CSV file to import customer data</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileSelect}
+                  className="file-input"
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="upload-button"
                 >
-                  📁 Upload CSV File
-                </button>
-                <button
-                  className={`toggle-button ${importMethod === 'googlesheet' ? 'active' : ''}`}
-                  onClick={() => {
-                    setImportMethod('googlesheet');
-                    setGoogleSheetError(null);
-                  }}
-                >
-                  📊 Import from Google Sheets
+                  Choose File
                 </button>
               </div>
-
-              {/* File Upload Option */}
-              {importMethod === 'file' && (
-                <div className="upload-area">
-                  <div className="upload-icon">📁</div>
-                  <h3>Select CSV File</h3>
-                  <p>Choose a CSV file to import customer data</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileSelect}
-                    className="file-input"
-                  />
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="upload-button"
-                  >
-                    Choose File
-                  </button>
-                </div>
-              )}
-
-              {/* Google Sheets Import Option */}
-              {importMethod === 'googlesheet' && (
-                <div className="google-sheets-area">
-                  <div className="upload-icon">📊</div>
-                  <h3>Import from Google Sheets</h3>
-                  <p>Paste your Google Sheets share link below</p>
-                  
-                  <div className="google-sheet-input-container">
-                    <input
-                      type="text"
-                      value={googleSheetUrl}
-                      onChange={(e) => {
-                        setGoogleSheetUrl(e.target.value);
-                        setGoogleSheetError(null);
-                      }}
-                      placeholder="https://docs.google.com/spreadsheets/d/..."
-                      className="google-sheet-input"
-                    />
-                    <button
-                      onClick={fetchGoogleSheetData}
-                      disabled={!googleSheetUrl.trim() || loadingGoogleSheet}
-                      className="primary-button"
-                    >
-                      {loadingGoogleSheet ? '⏳ Loading...' : '📥 Import Sheet'}
-                    </button>
-                  </div>
-
-                  {googleSheetError && (
-                    <div className="error-message">
-                      ❌ {googleSheetError}
-                    </div>
-                  )}
-
-                  <div className="google-sheets-instructions">
-                    <h4>📝 How to import your Google Sheet data:</h4>
-                    <div className="instruction-method highlight-method">
-                      <strong>✅ EASIEST: Direct Link Import</strong>
-                      <ol>
-                        <li>Open your Google Sheet</li>
-                        <li>Click <strong>Share</strong> button (top-right)</li>
-                        <li>Change to <strong>"Anyone with the link"</strong> can view</li>
-                        <li>Click <strong>"Copy link"</strong></li>
-                        <li>Paste the link above and click "Import Sheet"</li>
-                      </ol>
-                      <p className="method-note">✨ We'll automatically extract the data from your Google Sheet!</p>
-                    </div>
-                    <div className="instruction-divider">OR</div>
-                    <div className="instruction-method">
-                      <strong>📥 Download as CSV (Always Works)</strong>
-                      <ol>
-                        <li>Open your Google Sheet</li>
-                        <li>Click <strong>File</strong> → <strong>Download</strong> → <strong>Comma Separated Values (.csv)</strong></li>
-                        <li>Save the CSV file to your computer</li>
-                        <li>Switch to "Upload CSV File" tab above</li>
-                        <li>Upload the downloaded file</li>
-                      </ol>
-                      <p className="method-note">⚠️ Use this if the direct link import doesn't work.</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               <div className="format-info">
                 <h4>Expected Format:</h4>

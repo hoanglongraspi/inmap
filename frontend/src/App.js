@@ -277,21 +277,10 @@ function App() {
     try {
       setLoading(true);
       
-      console.log('🔄 Starting to fetch customer data from Supabase...');
-      console.log('🔑 Supabase URL configured:', process.env.REACT_APP_SUPABASE_URL ? 'Yes' : 'No');
-      
       // Fetch ALL customer data from Supabase (not just sites)
-      const sitesData = await apiGetCustomers().catch((err) => {
-        console.error('❌ apiGetCustomers failed:', err);
-        return [];
-      });
+      const sitesData = await apiGetCustomers().catch(() => []);
       
-      console.log('📊 Fetched sites data:', sitesData.length, 'total customers');
-      
-      if (sitesData.length === 0) {
-        console.warn('⚠️ No customers found in database!');
-        console.warn('💡 Please import data using CSV Import feature');
-      }
+      console.log('Fetched sites data:', sitesData.length, 'total customers');
       
       // Convert data to consistent format for the map
       // Note: Geocoding happens during CSV import, not here!
@@ -333,19 +322,10 @@ function App() {
       const sitesWithCoords = convertedSites.filter(s => s.latitude && s.longitude).length;
       console.log(`✅ Loaded ${convertedSites.length} sites (${sitesWithCoords} with coordinates)`);
       
-      if (sitesWithCoords === 0 && convertedSites.length > 0) {
-        console.error('❌ PROBLEM: You have customers but NONE have coordinates!');
-        console.error('💡 Solution: Import demo-import.csv file which includes coordinates');
-      }
-      
       setSites(convertedSites);
       setError(null);
     } catch (err) {
-      console.error('❌ Error fetching sites:', err);
-      console.error('📝 Error details:', {
-        message: err.message,
-        stack: err.stack
-      });
+      console.error('Error fetching sites:', err);
       setError(err.message);
     } finally {
       setLoading(false);

@@ -95,7 +95,6 @@ MapPlot/
 - [CSV Import Guide](./CSV_IMPORT_GUIDE.md)
 - [Customer Management Guide](./CUSTOMER_MANAGEMENT_GUIDE.md)
 - [Geocoding Guide](./GEOCODING_GUIDE.md)
-- [Google Sheets Import Guide](./GOOGLE_SHEETS_IMPORT_GUIDE.md)
 - [Schema Fix Guide](./SCHEMA_FIX_GUIDE.md)
 
 ## Support
