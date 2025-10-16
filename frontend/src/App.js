@@ -1094,9 +1094,11 @@ Format your response with clear sections and bullet points.`
 
   // Setup map once
   useEffect(() => {
-    if (map.current || loading || sites.length === 0) return;
+    // Only prevent initialization if map already exists
+    // Don't wait for sites to load - map should init immediately
+    if (map.current) return;
 
-    console.log('🗺️ Initializing map with', sites.length, 'sites');
+    console.log('🗺️ Initializing map (sites loaded:', sites.length, ')');
 
     try {
       map.current = new maplibregl.Map({
@@ -1150,6 +1152,7 @@ Format your response with clear sections and bullet points.`
     });
 
     map.current.on("load", () => {
+      console.log('🎉 Map loaded event fired!');
       setMapReady(true);
 
       // Create 3 separate sources for each product type
@@ -1179,6 +1182,8 @@ Format your response with clear sections and bullet points.`
         clusterRadius: 25,
         clusterMaxZoom: 16
       });
+
+      console.log('✅ All 3 map sources created: favorites-sate, favorites-audiosight, favorites-other');
 
       // === SATE BLUE CLUSTERS ===
       map.current.addLayer({
@@ -1398,6 +1403,8 @@ Format your response with clear sections and bullet points.`
           });
         });
       };
+
+      console.log('✅ All map layers and click handlers added successfully');
 
       // Attach cluster click handlers
       map.current.on("click", "clusters-sate", (e) => handleClusterClick(e, "clusters-sate", "favorites-sate"));
@@ -1642,6 +1649,8 @@ Format your response with clear sections and bullet points.`
       map.current.on("click", "points-sate", handlePointClick);
       map.current.on("click", "points-audiosight", handlePointClick);
       map.current.on("click", "points-other", handlePointClick);
+
+      console.log('🎊 Map initialization complete! Ready to display data.');
     });
 
     return () => {
@@ -1651,11 +1660,18 @@ Format your response with clear sections and bullet points.`
       }
       listenerAttached.current = false;
     };
-  }, [sites, loading]);
+  }, []); // Empty deps - map should only initialize once
 
   // Update map data - split features by product type into separate sources
   const refreshSafe = useCallback((features) => {
-    if (!map.current || !mapReady) return;
+    if (!map.current) {
+      console.warn('⚠️ refreshSafe: map.current is null');
+      return;
+    }
+    if (!mapReady) {
+      console.warn('⚠️ refreshSafe: map not ready yet');
+      return;
+    }
     
     // Split features into 3 groups by color/product
     const sateFeatures = features.filter(f => f.properties.color === '#3b82f6'); // Blue - SATE
@@ -1671,18 +1687,27 @@ Format your response with clear sections and bullet points.`
       const srcSATE = map.current.getSource('favorites-sate');
       if (srcSATE) {
         srcSATE.setData({ type: 'FeatureCollection', features: sateFeatures });
+        console.log('✅ Updated SATE source');
+      } else {
+        console.error('❌ SATE source not found - map may not be fully loaded');
       }
 
       // Update AudioSight source (red clusters)
       const srcAudioSight = map.current.getSource('favorites-audiosight');
       if (srcAudioSight) {
         srcAudioSight.setData({ type: 'FeatureCollection', features: audiosightFeatures });
+        console.log('✅ Updated AudioSight source');
+      } else {
+        console.error('❌ AudioSight source not found - map may not be fully loaded');
       }
 
       // Update Other source (green/other clusters)
       const srcOther = map.current.getSource('favorites-other');
       if (srcOther) {
         srcOther.setData({ type: 'FeatureCollection', features: otherFeatures });
+        console.log('✅ Updated Other source');
+      } else {
+        console.error('❌ Other source not found - map may not be fully loaded');
       }
     } catch (e) {
       console.error('❌ Error updating map sources:', e);
