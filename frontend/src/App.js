@@ -240,10 +240,10 @@ function App() {
   const mapContainer = useRef(null);
   const map = useRef(null);
   const clusterIndex = useRef(null);
-  // Separate cluster indexes for each product type
-  const clusterIndexAudioSight = useRef(null);
-  const clusterIndexSATE = useRef(null);
-  const clusterIndexOther = useRef(null);
+  // Separate cluster indexes for each product type (currently unused)
+  // const clusterIndexAudioSight = useRef(null);
+  // const clusterIndexSATE = useRef(null);
+  // const clusterIndexOther = useRef(null);
   const listenerAttached = useRef(false);
 
   const [mapReady, setMapReady] = useState(false);
