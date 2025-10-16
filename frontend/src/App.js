@@ -1093,7 +1093,6 @@ Format your response with clear sections and bullet points.`
   const filteredFeatures = useMemo(() => toFeatures(filteredSites), [filteredSites, toFeatures]);
 
   // Setup map once - should only run once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Only prevent initialization if map already exists
     // Don't wait for sites to load - map should init immediately
@@ -1661,6 +1660,7 @@ Format your response with clear sections and bullet points.`
       }
       listenerAttached.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - map should only initialize once
 
   // Update map data - split features by product type into separate sources
