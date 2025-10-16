@@ -46,10 +46,10 @@ const CSVImport = ({ onImportComplete, onClose }) => {
         setAvailableProducts(productOptions);
       } catch (error) {
         console.error('Failed to load products:', error);
-        // Fallback to default products
+        // Fallback to default products (match database casing)
         setAvailableProducts([
-          { value: 'ArmRehab', label: 'ArmRehab', id: 'armrehab' },
-          { value: 'Audiosight', label: 'Audiosight', id: 'audiosight' },
+          { value: 'AudioSight', label: 'AudioSight', id: 'audiosight' },
+          { value: 'SATE', label: 'SATE', id: 'sate' },
           { value: 'Both', label: 'Both Products', id: 'both' }
         ]);
       }

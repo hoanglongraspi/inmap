@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './CustomerManagementPage.css';
-import { apiGetCustomers, apiCreateCustomer, apiUpdateCustomer, apiDeleteCustomer } from '../lib/api';
+import { apiGetCustomers, apiCreateCustomer, apiUpdateCustomer, apiDeleteCustomer, apiGeocodeCustomers } from '../lib/api';
 import CSVImport from '../components/CSVImport';
 
 const CustomerManagementPage = () => {
@@ -24,6 +24,12 @@ const CustomerManagementPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [editFormData, setEditFormData] = useState(null);
+  
+  // Geocoding state
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeProgress, setGeocodeProgress] = useState(null);
+  const [showGeocodeModal, setShowGeocodeModal] = useState(false);
+  const [geocodeResults, setGeocodeResults] = useState(null);
 
   // Fetch all customer data
   const fetchCustomers = async () => {
@@ -250,6 +256,33 @@ const CustomerManagementPage = () => {
     setShowCSVImport(false);
   };
 
+  // Handle geocoding missing customers
+  const handleGeocodeCustomers = async () => {
+    setGeocoding(true);
+    setShowGeocodeModal(true);
+    setGeocodeProgress({ current: 0, total: 0, status: 'starting' });
+    setGeocodeResults(null);
+
+    try {
+      const results = await apiGeocodeCustomers((progress) => {
+        setGeocodeProgress(progress);
+      });
+
+      setGeocodeResults(results);
+      
+      // Refresh customer list after geocoding
+      await fetchCustomers();
+    } catch (error) {
+      console.error('Geocoding error:', error);
+      setGeocodeResults({
+        success: false,
+        error: error.message
+      });
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   // Get status color
   const getStatusColor = (status) => {
     switch (status) {
@@ -308,9 +341,11 @@ const CustomerManagementPage = () => {
     <div className="customer-page">
       {/* Header with Logo */}
       <header style={{
-        background: '#ffffff',
-        borderBottom: '2px solid #e5e7eb',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+        background: 'rgba(255, 255, 255, 0.75)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(229, 231, 235, 0.5)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -399,6 +434,13 @@ const CustomerManagementPage = () => {
           </p>
         </div>
         <div className="header-actions">
+          <button onClick={handleGeocodeCustomers} className="btn-import" style={{ background: '#f59e0b', borderColor: '#f59e0b' }} disabled={geocoding}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 2v20M2 12h20"/>
+            </svg>
+            {geocoding ? 'Geocoding...' : 'Geocode Missing'}
+          </button>
           <button onClick={() => setShowCSVImport(true)} className="btn-import">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
@@ -911,6 +953,156 @@ const CustomerManagementPage = () => {
           onImportComplete={handleImportComplete}
           onClose={() => setShowCSVImport(false)}
         />
+      )}
+
+      {/* Geocoding Progress Modal */}
+      {showGeocodeModal && (
+        <div className="modal-overlay" onClick={() => !geocoding && setShowGeocodeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h3>🌍 Geocoding Customers</h3>
+              {!geocoding && (
+                <button onClick={() => setShowGeocodeModal(false)} className="close-button">×</button>
+              )}
+            </div>
+            
+            <div className="modal-body" style={{ padding: '24px' }}>
+              {geocoding && geocodeProgress && (
+                <div>
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontWeight: 600 }}>Processing customers...</span>
+                      <span style={{ color: '#6b7280' }}>
+                        {geocodeProgress.current} / {geocodeProgress.total}
+                      </span>
+                    </div>
+                    <div style={{ background: '#e5e7eb', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div 
+                        style={{ 
+                          background: '#3b82f6', 
+                          height: '100%', 
+                          width: `${(geocodeProgress.current / geocodeProgress.total) * 100}%`,
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {geocodeProgress.customer && (
+                    <div style={{ 
+                      background: '#f9fafb', 
+                      padding: '12px', 
+                      borderRadius: '8px', 
+                      marginBottom: '12px',
+                      border: '1px solid #e5e7eb'
+                    }}>
+                      <div style={{ fontSize: '14px', color: '#374151', marginBottom: '4px' }}>
+                        <strong>{geocodeProgress.customer}</strong>
+                      </div>
+                      {geocodeProgress.status === 'success' && (
+                        <div style={{ fontSize: '12px', color: '#10b981' }}>
+                          ✅ Geocoded: {geocodeProgress.coordinates}
+                        </div>
+                      )}
+                      {geocodeProgress.status === 'failed' && (
+                        <div style={{ fontSize: '12px', color: '#f59e0b' }}>
+                          ⚠️ Could not geocode: {geocodeProgress.reason}
+                        </div>
+                      )}
+                      {geocodeProgress.status === 'error' && (
+                        <div style={{ fontSize: '12px', color: '#ef4444' }}>
+                          ❌ Error: {geocodeProgress.error}
+                        </div>
+                      )}
+                      {geocodeProgress.status === 'processing' && (
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          🔄 Processing...
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div style={{ fontSize: '13px', color: '#6b7280', textAlign: 'center' }}>
+                    Please wait, this may take a few minutes...
+                  </div>
+                </div>
+              )}
+              
+              {!geocoding && geocodeResults && (
+                <div>
+                  {geocodeResults.success ? (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>✅</div>
+                      <h3 style={{ margin: '0 0 24px 0', color: '#10b981' }}>Geocoding Complete!</h3>
+                      
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+                        <div style={{ background: '#f0fdf4', padding: '16px', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                          <div style={{ fontSize: '32px', fontWeight: 700, color: '#16a34a' }}>
+                            {geocodeResults.geocoded}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#15803d', marginTop: '4px' }}>
+                            Successfully Geocoded
+                          </div>
+                        </div>
+                        
+                        <div style={{ background: '#fef3c7', padding: '16px', borderRadius: '8px', border: '1px solid #fde68a' }}>
+                          <div style={{ fontSize: '32px', fontWeight: 700, color: '#d97706' }}>
+                            {geocodeResults.failed}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#b45309', marginTop: '4px' }}>
+                            Failed
+                          </div>
+                        </div>
+                        
+                        <div style={{ background: '#dbeafe', padding: '16px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                          <div style={{ fontSize: '32px', fontWeight: 700, color: '#2563eb' }}>
+                            {geocodeResults.processed}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#1e40af', marginTop: '4px' }}>
+                            Total Processed
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {geocodeResults.message && (
+                        <div style={{ 
+                          background: '#eff6ff', 
+                          padding: '12px', 
+                          borderRadius: '8px', 
+                          fontSize: '14px',
+                          color: '#1e40af',
+                          marginBottom: '16px'
+                        }}>
+                          ℹ️ {geocodeResults.message}
+                        </div>
+                      )}
+                      
+                      <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 16px 0' }}>
+                        Your customers with coordinates will now appear on the map!
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '16px' }}>❌</div>
+                      <h3 style={{ margin: '0 0 16px 0', color: '#ef4444' }}>Geocoding Failed</h3>
+                      <p style={{ fontSize: '14px', color: '#6b7280' }}>
+                        {geocodeResults.error}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            {!geocoding && (
+              <div className="modal-footer">
+                <button onClick={() => setShowGeocodeModal(false)} className="btn-primary">
+                  Close
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

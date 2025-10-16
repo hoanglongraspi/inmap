@@ -617,8 +617,8 @@ export async function apiImportCSVData(csvData, selectedProduct = 'Unknown') {
       return cleaned.length > 0 ? cleaned : null;
     };
 
-    // Convert selected product to array format
-    const productsInterestedArray = selectedProduct === 'Both' ? ['ArmRehab', 'Audiosight'] : [selectedProduct];
+    // Convert selected product to array format (match database casing)
+    const productsInterestedArray = selectedProduct === 'Both' ? ['AudioSight', 'SATE'] : [selectedProduct];
 
     console.log('Starting CSV import with geocoding for', csvData.length, 'rows...');
     
@@ -666,7 +666,7 @@ export async function apiImportCSVData(csvData, selectedProduct = 'Unknown') {
         country: 'USA',
         latitude: latitude,
         longitude: longitude,
-        products_interested: productsInterestedArray,
+        'product(s)_interested': productsInterestedArray,
         status: row.status || 'lead',
         claimed_by: user.id,
         source_system: 'csv_import',
@@ -782,5 +782,129 @@ export async function apiCreateSampleData() {
     };
   } catch (error) {
     throw new Error(error.message || "Failed to create sample data")
+  }
+}
+
+// Geocode customers that are missing coordinates
+export async function apiGeocodeCustomers(onProgress) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) throw new Error("Must be authenticated")
+
+    // Get all customers without coordinates
+    const { data: customers, error: fetchError } = await supabase
+      .from('customers')
+      .select('*')
+      .or('latitude.is.null,longitude.is.null')
+
+    if (fetchError) throw new Error(fetchError.message)
+
+    if (!customers || customers.length === 0) {
+      return {
+        success: true,
+        message: 'All customers already have coordinates',
+        processed: 0,
+        geocoded: 0,
+        failed: 0
+      }
+    }
+
+    console.log(`Found ${customers.length} customers without coordinates`)
+    
+    let geocodedCount = 0
+    let failedCount = 0
+
+    for (let i = 0; i < customers.length; i++) {
+      const customer = customers[i]
+      
+      // Report progress
+      if (onProgress) {
+        onProgress({
+          current: i + 1,
+          total: customers.length,
+          customer: customer.name || customer.company,
+          status: 'processing'
+        })
+      }
+
+      try {
+        // Try to geocode
+        const geocoded = await geocodeForImport(
+          customer.address || '',
+          customer.city || '',
+          customer.state || '',
+          customer.postal_code || ''
+        )
+
+        if (geocoded && geocoded.latitude && geocoded.longitude) {
+          // Update customer with coordinates
+          const { error: updateError } = await supabase
+            .from('customers')
+            .update({
+              latitude: geocoded.latitude,
+              longitude: geocoded.longitude,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', customer.id)
+
+          if (updateError) {
+            console.error('Failed to update customer:', updateError)
+            failedCount++
+          } else {
+            console.log(`✅ Geocoded: ${customer.name} → ${geocoded.latitude}, ${geocoded.longitude}`)
+            geocodedCount++
+            
+            if (onProgress) {
+              onProgress({
+                current: i + 1,
+                total: customers.length,
+                customer: customer.name || customer.company,
+                status: 'success',
+                coordinates: `${geocoded.latitude}, ${geocoded.longitude}`
+              })
+            }
+          }
+        } else {
+          console.warn(`⚠️ Could not geocode: ${customer.name}`)
+          failedCount++
+          
+          if (onProgress) {
+            onProgress({
+              current: i + 1,
+              total: customers.length,
+              customer: customer.name || customer.company,
+              status: 'failed',
+              reason: 'No coordinates found'
+            })
+          }
+        }
+
+        // Rate limiting - wait between requests
+        await new Promise(resolve => setTimeout(resolve, 150))
+
+      } catch (error) {
+        console.error(`Error geocoding customer ${customer.id}:`, error)
+        failedCount++
+        
+        if (onProgress) {
+          onProgress({
+            current: i + 1,
+            total: customers.length,
+            customer: customer.name || customer.company,
+            status: 'error',
+            error: error.message
+          })
+        }
+      }
+    }
+
+    return {
+      success: true,
+      processed: customers.length,
+      geocoded: geocodedCount,
+      failed: failedCount
+    }
+  } catch (error) {
+    throw new Error(error.message || "Failed to geocode customers")
   }
 }

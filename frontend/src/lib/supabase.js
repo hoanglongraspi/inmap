@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY
 // Validate environment variables
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error(
-    'Missing Supabase environment variables. Please check your .env.local file and ensure REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY are set.'
+    'Missing Supabase environment variables. Please check your .env file and ensure REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_ANON_KEY are set.'
   )
 }
 
