@@ -12,12 +12,15 @@ This project develops a web application that centralizes customer maintenance in
 
 - **Analytics Dashboard**: View insights about customer distribution, product interest, and registration trends.
 
+- **🤖 AI Marketing Insights** (NEW): AI-powered marketing analysis using Google Gemini. Get actionable insights on geographic expansion, product opportunities, lead conversion strategies, and risk areas - all in real-time!
+
 This design helps the team identify geographic patterns, prioritize outreach, and track follow-ups more reliably.
 
 ## Technology Stack
 
 - **Frontend**: React 19, MapLibre GL, React Router
 - **Backend**: Supabase (PostgreSQL database + Authentication)
+- **AI/ML**: OpenRouter API + Google Gemini 2 27B (Free)
 - **Deployment**: Vercel (recommended)
 - **Mapping**: MapTiler, OpenStreetMap
 
@@ -38,12 +41,17 @@ This design helps the team identify geographic patterns, prioritize outreach, an
    ```
 
 3. **Set up environment variables**
-   - Copy `frontend/local.env` to `frontend/.env.local`
-   - Update with your Supabase credentials:
+   - Create `frontend/.env` file
+   - Add your credentials:
      ```env
+     # Supabase (Required)
      REACT_APP_SUPABASE_URL=https://your-project.supabase.co
      REACT_APP_SUPABASE_ANON_KEY=your_anon_key_here
+     
+     # OpenRouter for AI Insights (Optional)
+     REACT_APP_OPENROUTER_API_KEY=sk-or-v1-your-key-here
      ```
+   - See [AI Insights Setup Guide](./AI_INSIGHTS_QUICKSTART.md) for AI feature
 
 4. **Run the development server**
    ```bash
@@ -92,10 +100,17 @@ MapPlot/
 
 ## Additional Guides
 
+### Core Features
 - [CSV Import Guide](./CSV_IMPORT_GUIDE.md)
 - [Customer Management Guide](./CUSTOMER_MANAGEMENT_GUIDE.md)
 - [Geocoding Guide](./GEOCODING_GUIDE.md)
 - [Schema Fix Guide](./SCHEMA_FIX_GUIDE.md)
+
+### AI Marketing Insights (NEW) 🤖
+- [🚀 Quick Start (5 min)](./AI_INSIGHTS_QUICKSTART.md) - Get started fast
+- [📚 Full Setup Guide](./AI_INSIGHTS_SETUP.md) - Detailed instructions
+- [📝 Technical Docs](./CHANGELOG_AI_INSIGHTS.md) - For developers
+- [✅ Summary](./AI_INSIGHTS_SUMMARY.md) - Feature overview
 
 ## Support
 

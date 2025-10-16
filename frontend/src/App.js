@@ -247,6 +247,7 @@ function App() {
   const listenerAttached = useRef(false);
 
   const [mapReady, setMapReady] = useState(false);
+  const [mapInitRetry, setMapInitRetry] = useState(0); // Retry counter for map init
   const [sites, setSites] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1097,15 +1098,24 @@ Format your response with clear sections and bullet points.`
     // Only prevent initialization if map already exists
     if (map.current) return;
     
-    // Wait for map container to be rendered (only renders when activeTab === 'map')
-    if (!mapContainer.current) {
-      console.warn('⚠️ Map container not ready yet (activeTab:', activeTab, ')');
-      return;
-    }
-    
     // Only init when on map tab
     if (activeTab !== 'map') {
       console.warn('⚠️ Not on map tab yet, waiting...');
+      return;
+    }
+    
+    // Wait for map container to be rendered (ref attachment can be delayed)
+    if (!mapContainer.current) {
+      console.warn('⚠️ Map container not ready yet (retry:', mapInitRetry, ') - scheduling retry');
+      // Retry after a short delay (max 10 retries)
+      if (mapInitRetry < 10) {
+        const timer = setTimeout(() => {
+          setMapInitRetry(prev => prev + 1);
+        }, 100);
+        return () => clearTimeout(timer);
+      } else {
+        console.error('❌ Map container failed to initialize after 10 retries');
+      }
       return;
     }
 
@@ -1672,7 +1682,7 @@ Format your response with clear sections and bullet points.`
       listenerAttached.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]); // Depend on activeTab to init when map tab becomes active
+  }, [activeTab, mapInitRetry]); // Re-run when tab changes or retry counter increments
 
   // Update map data - split features by product type into separate sources
   const refreshSafe = useCallback((features) => {

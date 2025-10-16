@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audiosight Diagnostic Tool</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1200px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f9fafb;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    h1, h2 { margin: 0 0 16px 0; }
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { 
+      background: #9ca3af; 
+      cursor: not-allowed;
+    }
+    pre {
+      background: #f3f4f6;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .success { color: #10b981; font-weight: 600; }
+    .error { color: #ef4444; font-weight: 600; }
+    .warning { color: #f59e0b; font-weight: 600; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    th {
+      background: #f9fafb;
+      font-weight: 600;
+    }
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-success { background: #d1fae5; color: #065f46; }
+    .badge-error { background: #fee2e2; color: #991b1b; }
+    input {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 400px;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Audiosight Customer Diagnostic Tool</h1>
+  
+  <div class="card">
+    <h2>Step 1: Configure Supabase</h2>
+    <p>Enter your Supabase credentials (check your <code>.env</code> file):</p>
+    <div style="margin: 16px 0;">
+      <input type="text" id="supabaseUrl" placeholder="Supabase URL (https://xxx.supabase.co)" />
+      <br/><br/>
+      <input type="password" id="supabaseKey" placeholder="Supabase Anon Key" />
+      <br/><br/>
+      <button onclick="initSupabase()">Connect to Supabase</button>
+    </div>
+    <div id="connectionStatus"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 2: Check All Customers</h2>
+    <button onclick="checkAllCustomers()" id="checkAllBtn" disabled>Check All Customers</button>
+    <div id="allCustomersResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 3: Check Audiosight Customers</h2>
+    <button onclick="checkAudiosightCustomers()" id="checkAudiosightBtn" disabled>Check Audiosight Customers</button>
+    <div id="audiosightResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>Step 4: Check Products Format</h2>
+    <button onclick="checkProductsFormat()" id="checkFormatBtn" disabled>Check Products Field Format</button>
+    <div id="formatResult"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    let supabase = null;
+
+    function initSupabase() {
+      const url = document.getElementById('supabaseUrl').value;
+      const key = document.getElementById('supabaseKey').value;
+      
+      if (!url || !key) {
+        document.getElementById('connectionStatus').innerHTML = 
+          '<p class="error">❌ Please enter both URL and Key</p>';
+        return;
+      }
+
+      try {
+        supabase = window.supabase.createClient(url, key);
+        document.getElementById('connectionStatus').innerHTML = 
+          '<p class="success">✅ Connected to Supabase!</p>';
+        
+        // Enable all buttons
+        document.getElementById('checkAllBtn').disabled = false;
+        document.getElementById('checkAudiosightBtn').disabled = false;
+        document.getElementById('checkFormatBtn').disabled = false;
+      } catch (error) {
+        document.getElementById('connectionStatus').innerHTML = 
+          `<p class="error">❌ Error: ${error.message}</p>`;
+      }
+    }
+
+    async function checkAllCustomers() {
+      const resultDiv = document.getElementById('allCustomersResult');
+      resultDiv.innerHTML = '<p>Loading...</p>';
+
+      try {
+        const { data: customers, error, count } = await supabase
+          .from('customers')
+          .select('*', { count: 'exact' });
+
+        if (error) throw error;
+
+        const withCoords = customers.filter(c => c.latitude && c.longitude).length;
+        const withoutCoords = customers.filter(c => !c.latitude || !c.longitude).length;
+
+        // Group by products
+        const byProduct = {};
+        customers.forEach(c => {
+          let products = [];
+          if (Array.isArray(c.products_interested)) {
+            products = c.products_interested;
+          } else if (typeof c.products_interested === 'string') {
+            try {
+              products = JSON.parse(c.products_interested);
+            } catch (e) {
+              products = [c.products_interested];
+            }
+          }
+          
+          products.forEach(p => {
+            if (!byProduct[p]) {
+              byProduct[p] = { total: 0, withCoords: 0, withoutCoords: 0 };
+            }
+            byProduct[p].total++;
+            if (c.latitude && c.longitude) {
+              byProduct[p].withCoords++;
+            } else {
+              byProduct[p].withoutCoords++;
+            }
+          });
+        });
+
+        let html = `
+          <h3 style="margin-top: 16px;">📊 Total Customers: ${customers.length}</h3>
+          <p><span class="success">✅ With coordinates: ${withCoords}</span></p>
+          <p><span class="error">❌ Missing coordinates: ${withoutCoords}</span></p>
+          
+          <h4 style="margin-top: 20px;">Customers by Product:</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Total</th>
+                <th>With Coords</th>
+                <th>Missing Coords</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        Object.entries(byProduct).forEach(([product, stats]) => {
+          const statusClass = stats.withoutCoords === 0 ? 'badge-success' : 'badge-error';
+          const statusText = stats.withoutCoords === 0 ? '✅ All Good' : `❌ ${stats.withoutCoords} Missing`;
+          
+          html += `
+            <tr>
+              <td><strong>${product}</strong></td>
+              <td>${stats.total}</td>
+              <td>${stats.withCoords}</td>
+              <td>${stats.withoutCoords}</td>
+              <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+        `;
+
+        resultDiv.innerHTML = html;
+      } catch (error) {
+        resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+      }
+    }
+
+    async function checkAudiosightCustomers() {
+      const resultDiv = document.getElementById('audiosightResult');
+      resultDiv.innerHTML = '<p>Loading...</p>';
+
+      try {
+        // Try different query methods to find Audiosight customers
+        const { data: allCustomers, error: allError } = await supabase
+          .from('customers')
+          .select('*');
+
+        if (allError) throw allError;
+
+        // Filter manually since contains might not work with all formats
+        const audiosightCustomers = allCustomers.filter(c => {
+          let products = [];
+          if (Array.isArray(c.products_interested)) {
+            products = c.products_interested;
+          } else if (typeof c.products_interested === 'string') {
+            try {
+              products = JSON.parse(c.products_interested);
+            } catch (e) {
+              products = [c.products_interested];
+            }
+          }
+          
+          return products.some(p => 
+            String(p).toLowerCase().includes('audiosight')
+          );
+        });
+
+        const withCoords = audiosightCustomers.filter(c => c.latitude && c.longitude);
+        const withoutCoords = audiosightCustomers.filter(c => !c.latitude || !c.longitude);
+
+        let html = `
+          <h3 style="margin-top: 16px;">📊 Audiosight Customers Analysis</h3>
+          <p><strong>Total Audiosight customers:</strong> ${audiosightCustomers.length}</p>
+          <p><span class="success">✅ With coordinates: ${withCoords.length}</span></p>
+          <p><span class="error">❌ Missing coordinates: ${withoutCoords.length}</span></p>
+        `;
+
+        if (audiosightCustomers.length === 0) {
+          html += `
+            <div style="background: #fee2e2; padding: 16px; border-radius: 8px; margin: 16px 0;">
+              <h4 style="color: #991b1b; margin: 0 0 8px 0;">⚠️ No Audiosight Customers Found!</h4>
+              <p style="margin: 0;">This might mean:</p>
+              <ul>
+                <li>The product name is spelled differently (check Step 4)</li>
+                <li>The customers haven't been imported yet</li>
+                <li>The products_interested field format is incorrect</li>
+              </ul>
+            </div>
+          `;
+        } else {
+          // Show detailed table
+          html += `
+            <h4 style="margin-top: 20px;">Customer Details:</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>City</th>
+                  <th>State</th>
+                  <th>Zip</th>
+                  <th>Latitude</th>
+                  <th>Longitude</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+          `;
+
+          audiosightCustomers.slice(0, 20).forEach(c => {
+            const hasCoords = c.latitude && c.longitude;
+            const statusClass = hasCoords ? 'badge-success' : 'badge-error';
+            const statusText = hasCoords ? '✅ Has Coords' : '❌ Missing';
+            
+            html += `
+              <tr>
+                <td>${c.name || c.company || 'N/A'}</td>
+                <td>${c.city || 'N/A'}</td>
+                <td>${c.state || 'N/A'}</td>
+                <td>${c.postal_code || 'N/A'}</td>
+                <td>${c.latitude || '—'}</td>
+                <td>${c.longitude || '—'}</td>
+                <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+              </tr>
+            `;
+          });
+
+          html += `
+              </tbody>
+            </table>
+          `;
+
+          if (audiosightCustomers.length > 20) {
+            html += `<p style="color: #6b7280; font-size: 12px; margin-top: 8px;">Showing first 20 of ${audiosightCustomers.length} customers</p>`;
+          }
+
+          // If there are missing coordinates, show action items
+          if (withoutCoords.length > 0) {
+            html += `
+              <div style="background: #fef3c7; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <h4 style="color: #92400e; margin: 0 0 8px 0;">🔧 Action Required:</h4>
+                <p style="margin: 0 0 8px 0;"><strong>${withoutCoords.length} customers need geocoding</strong></p>
+                <p style="margin: 0;">Go to the Customer Management page and click the orange "Geocode Missing" button to fix this!</p>
+              </div>
+            `;
+          } else {
+            html += `
+              <div style="background: #d1fae5; padding: 16px; border-radius: 8px; margin: 16px 0;">
+                <h4 style="color: #065f46; margin: 0 0 8px 0;">✅ All Audiosight customers have coordinates!</h4>
+                <p style="margin: 0;">They should be visible on the map. If not, check the product filter on the map page.</p>
+              </div>
+            `;
+          }
+        }
+
+        resultDiv.innerHTML = html;
+      } catch (error) {
+        resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+        console.error('Full error:', error);
+      }
+    }
+
+    async function checkProductsFormat() {
+      const resultDiv = document.getElementById('formatResult');
+      resultDiv.innerHTML = '<p>Loading...</p>';
+
+      try {
+        const { data: customers, error } = await supabase
+          .from('customers')
+          .select('id, name, products_interested')
+          .limit(50);
+
+        if (error) throw error;
+
+        const formats = {
+          array: 0,
+          stringArray: 0,
+          string: 0,
+          null: 0,
+          other: 0
+        };
+
+        const uniqueProducts = new Set();
+        const examples = [];
+
+        customers.forEach(c => {
+          const field = c.products_interested;
+          let products = [];
+          
+          if (field === null || field === undefined) {
+            formats.null++;
+          } else if (Array.isArray(field)) {
+            formats.array++;
+            products = field;
+          } else if (typeof field === 'string') {
+            try {
+              const parsed = JSON.parse(field);
+              if (Array.isArray(parsed)) {
+                formats.stringArray++;
+                products = parsed;
+              } else {
+                formats.string++;
+                products = [field];
+              }
+            } catch (e) {
+              formats.string++;
+              products = [field];
+            }
+          } else {
+            formats.other++;
+          }
+
+          products.forEach(p => uniqueProducts.add(String(p)));
+          
+          if (examples.length < 10) {
+            examples.push({
+              name: c.name || 'N/A',
+              raw: JSON.stringify(field),
+              parsed: products.join(', ')
+            });
+          }
+        });
+
+        let html = `
+          <h3 style="margin-top: 16px;">📊 Products Field Format Analysis</h3>
+          
+          <h4>Format Distribution:</h4>
+          <table style="max-width: 500px;">
+            <tr><td>Array (correct)</td><td><strong>${formats.array}</strong></td></tr>
+            <tr><td>String-encoded array</td><td><strong>${formats.stringArray}</strong></td></tr>
+            <tr><td>Plain string</td><td><strong>${formats.string}</strong></td></tr>
+            <tr><td>Null/undefined</td><td><strong>${formats.null}</strong></td></tr>
+            <tr><td>Other</td><td><strong>${formats.other}</strong></td></tr>
+          </table>
+
+          <h4 style="margin-top: 20px;">All Unique Products Found:</h4>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0;">
+        `;
+
+        Array.from(uniqueProducts).forEach(product => {
+          const isAudiosight = product.toLowerCase().includes('audiosight');
+          const style = isAudiosight 
+            ? 'background: #dbeafe; color: #1e40af; border: 2px solid #3b82f6;'
+            : 'background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;';
+          
+          html += `
+            <span style="padding: 6px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; ${style}">
+              ${product}
+            </span>
+          `;
+        });
+
+        html += `
+          </div>
+
+          <h4 style="margin-top: 20px;">Sample Data (first 10 customers):</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Raw Value</th>
+                <th>Parsed Products</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        examples.forEach(ex => {
+          html += `
+            <tr>
+              <td>${ex.name}</td>
+              <td><code>${ex.raw}</code></td>
+              <td>${ex.parsed || 'None'}</td>
+            </tr>
+          `;
+        });
+
+        html += `
+            </tbody>
+          </table>
+
+          <div style="background: #eff6ff; padding: 16px; border-radius: 8px; margin: 16px 0;">
+            <h4 style="color: #1e40af; margin: 0 0 8px 0;">💡 Key Findings:</h4>
+            <ul style="margin: 0; padding-left: 20px;">
+              <li><strong>${uniqueProducts.size}</strong> unique product names found</li>
+              <li>Look for variations in spelling: "Audiosight" vs "audiosight" vs "AudioSight"</li>
+              <li>Check if the product filter on the map matches these exact names</li>
+            </ul>
+          </div>
+        `;
+
+        resultDiv.innerHTML = html;
+      } catch (error) {
+        resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
+
+
