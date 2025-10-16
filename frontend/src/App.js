@@ -1092,7 +1092,8 @@ Format your response with clear sections and bullet points.`
   // Keep a memoized FeatureCollection for filtered sites
   const filteredFeatures = useMemo(() => toFeatures(filteredSites), [filteredSites, toFeatures]);
 
-  // Setup map once
+  // Setup map once - should only run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Only prevent initialization if map already exists
     // Don't wait for sites to load - map should init immediately
