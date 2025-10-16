@@ -1092,11 +1092,22 @@ Format your response with clear sections and bullet points.`
   // Keep a memoized FeatureCollection for filtered sites
   const filteredFeatures = useMemo(() => toFeatures(filteredSites), [filteredSites, toFeatures]);
 
-  // Setup map once - should only run once on mount
+  // Setup map once - wait for container to be ready and map tab to be active
   useEffect(() => {
     // Only prevent initialization if map already exists
-    // Don't wait for sites to load - map should init immediately
     if (map.current) return;
+    
+    // Wait for map container to be rendered (only renders when activeTab === 'map')
+    if (!mapContainer.current) {
+      console.warn('⚠️ Map container not ready yet (activeTab:', activeTab, ')');
+      return;
+    }
+    
+    // Only init when on map tab
+    if (activeTab !== 'map') {
+      console.warn('⚠️ Not on map tab yet, waiting...');
+      return;
+    }
 
     console.log('🗺️ Initializing map (sites loaded:', sites.length, ')');
 
@@ -1661,7 +1672,7 @@ Format your response with clear sections and bullet points.`
       listenerAttached.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - map should only initialize once
+  }, [activeTab]); // Depend on activeTab to init when map tab becomes active
 
   // Update map data - split features by product type into separate sources
   const refreshSafe = useCallback((features) => {
