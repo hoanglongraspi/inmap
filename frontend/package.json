@@ -17,6 +17,7 @@
     "supabase": "^2.48.3",
     "supercluster": "^8.0.1",
     "web-vitals": "^2.1.4",
+    "yaml": "^2.8.1",
     "zipcodes": "^8.0.0"
   },
   "scripts": {
